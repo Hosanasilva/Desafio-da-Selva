@@ -156,31 +156,53 @@ const EMOJIS = ['🌿','🥑','🐆','🦜','🐒','🌴','🔥','🥩'];
 const RECEITAS = {
   cafe:[
     {n:'Ovos mexidos com abacate', t:'10 min', i:['3 ovos','1/2 abacate','sal e pimenta a gosto','1 fio de azeite ou manteiga'], p:'Mexa os ovos em fogo baixo na manteiga até ficarem cremosos. Sirva com o abacate fatiado por cima.'},
-    {n:'Omelete de queijo e tomate', t:'10 min', i:['3 ovos','1 tomate picado','queijo (minas ou muçarela) em cubos','orégano'], p:'Bata os ovos, despeje na frigideira untada, adicione o tomate e o queijo, dobre a omelete e deixe dourar.'},
+    {n:'Omelete de queijo e tomate', q:1, t:'10 min', i:['3 ovos','1 tomate picado','queijo (minas ou muçarela) em cubos','orégano'], p:'Bata os ovos, despeje na frigideira untada, adicione o tomate e o queijo, dobre a omelete e deixe dourar.'},
     {n:'Batata-doce com ovo', t:'20 min', i:['1 batata-doce média','2 ovos','sal','azeite'], p:'Cozinhe a batata-doce em rodelas e doure na frigideira. Faça os ovos fritos ou cozidos e sirva junto.'},
     {n:'Bife com ovo frito', t:'15 min', i:['1 bife','1 ovo','sal','alho'], p:'Tempere o bife com sal e alho e grelhe. Na mesma frigideira, frite o ovo e sirva por cima.'},
-    {n:'Mamão com ovos cozidos', t:'12 min', i:['1 fatia de mamão','2 ovos cozidos','castanhas (opcional)'], p:'Cozinhe os ovos por 8 a 10 minutos, descasque e sirva com o mamão.'}
+    {n:'Mamão com ovos cozidos', t:'12 min', i:['1 fatia de mamão','2 ovos cozidos','castanhas (opcional)'], p:'Cozinhe os ovos por 8 a 10 minutos, descasque e sirva com o mamão.'},
+    {n:'Ovos mexidos com queijo minas', q:1, t:'8 min', i:['3 ovos','50 g de queijo minas em cubos','sal e orégano','1 fio de azeite ou manteiga'], p:'Mexa os ovos na manteiga em fogo baixo e, quase no ponto, junte o queijo para derreter de leve.'},
+    {n:'Panqueca de banana com queijo', q:1, t:'10 min', i:['1 banana madura amassada','2 ovos','canela','queijo muçarela ou minas para rechear'], p:'Misture a banana, os ovos e a canela. Doure dos dois lados na frigideira antiaderente e recheie com o queijo.'},
+    {n:'Queijo coalho com ovo e tomate', q:1, t:'10 min', i:['2 espetos de queijo coalho','2 ovos cozidos','1 tomate em fatias','orégano'], p:'Grelhe o queijo coalho até dourar e sirva com os ovos cozidos e o tomate temperado com orégano.'}
   ],
   almoco:[
     {n:'Frango grelhado com batata-doce e salada', t:'35 min', i:['1 filé de frango','1 batata-doce','folhas verdes','limão, sal, alho'], p:'Tempere o frango com limão, sal e alho e grelhe. Asse a batata-doce em rodelas e monte o prato com a salada.'},
     {n:'Carne moída com abóbora', t:'30 min', i:['carne moída','abóbora em cubos','cebola e alho','cheiro-verde'], p:'Refogue a cebola e o alho, doure a carne, junte a abóbora com um pouco de água e cozinhe até ficar macia.'},
     {n:'Peixe assado com legumes', t:'35 min', i:['1 filé de peixe','abobrinha e cenoura','limão','azeite, sal'], p:'Tempere o peixe com limão e sal, disponha sobre os legumes numa assadeira com um fio de azeite e asse até dourar.'},
     {n:'Bife acebolado com mandioca', t:'35 min', i:['1 bife','1 cebola em rodelas','mandioca cozida','sal'], p:'Grelhe o bife, doure a cebola na mesma frigideira e sirva com a mandioca cozida.'},
-    {n:'Frango desfiado com legumes', t:'30 min', i:['peito de frango cozido e desfiado','chuchu, cenoura e vagem','alho e cebola'], p:'Refogue alho e cebola, junte os legumes picados, o frango desfiado e um pouco de água. Cozinhe até os legumes amaciarem.'}
+    {n:'Frango desfiado com legumes', t:'30 min', i:['peito de frango cozido e desfiado','chuchu, cenoura e vagem','alho e cebola'], p:'Refogue alho e cebola, junte os legumes picados, o frango desfiado e um pouco de água. Cozinhe até os legumes amaciarem.'},
+    {n:'Frango gratinado com queijo', q:1, t:'30 min', i:['1 filé de frango','queijo muçarela','tomate em rodelas','sal, alho e orégano'], p:'Grelhe o filé temperado, coloque o tomate e o queijo por cima e leve ao forno ou tampe a frigideira até derreter.'},
+    {n:'Escondidinho de mandioca com carne e queijo', q:1, t:'45 min', i:['mandioca cozida e amassada','carne moída refogada','queijo muçarela ou minas ralado','cebola e alho'], p:'Monte camadas de purê de mandioca e carne moída, cubra com o queijo e leve ao forno até gratinar.'},
+    {n:'Abobrinha recheada com carne e queijo', q:1, t:'40 min', i:['2 abobrinhas cortadas ao meio','carne moída refogada','queijo ralado','cebola e alho'], p:'Escave as abobrinhas, recheie com a carne, cubra com o queijo e asse até dourar.'}
   ],
   lanche:[
     {n:'Ovos cozidos com sal e pimenta', t:'10 min', i:['2 ovos','sal','pimenta-do-reino'], p:'Cozinhe por 8 a 10 minutos, descasque e tempere.'},
     {n:'Abacate com limão', t:'3 min', i:['1/2 abacate','limão','pitada de sal'], p:'Amasse ou corte em cubos e finalize com limão e sal.'},
     {n:'Fruta com castanhas', t:'2 min', i:['1 fruta da estação','um punhado de castanhas'], p:'Corte a fruta e sirva com as castanhas.'},
     {n:'Queijo coalho grelhado', t:'8 min', i:['queijo coalho em espeto'], p:'Grelhe em frigideira antiaderente até dourar dos dois lados.'},
-    {n:'Banana assada com canela', t:'12 min', i:['1 banana','canela em pó'], p:'Asse a banana com casca por cerca de 10 minutos, abra e polvilhe canela.'}
+    {n:'Banana assada com canela', t:'12 min', i:['1 banana','canela em pó'], p:'Asse a banana com casca por cerca de 10 minutos, abra e polvilhe canela.'},
+    {n:'Tomate com queijo e orégano', q:1, t:'5 min', i:['1 tomate em fatias','queijo minas em fatias','orégano','azeite'], p:'Intercale tomate e queijo, finalize com orégano e um fio de azeite.'},
+    {n:'Espetinho de queijo coalho e tomate-cereja', q:1, t:'10 min', i:['queijo coalho em cubos','tomates-cereja','orégano'], p:'Monte os espetinhos e grelhe até o queijo dourar.'},
+    {n:'Wrap de ovo com queijo', q:1, t:'8 min', i:['2 ovos batidos','queijo muçarela ou minas','sal'], p:'Faça uma omelete bem fina, recheie com o queijo, dobre e deixe derreter.'}
   ],
   jantar:[
     {n:'Omelete de legumes', t:'12 min', i:['3 ovos','abobrinha ralada','tomate','sal e ervas'], p:'Misture tudo aos ovos batidos, cozinhe em fogo baixo e dobre ao meio.'},
     {n:'Caldo de carne com legumes', t:'40 min', i:['carne em cubos','cenoura, abóbora e chuchu','alho, cebola, sal','cheiro-verde'], p:'Refogue a carne, adicione água e cozinhe na pressão ou em fogo baixo até ficar macia. Junte os legumes e cozinhe mais um pouco.'},
     {n:'Sobrecoxa assada com legumes', t:'45 min', i:['sobrecoxas de frango','abóbora e cebola','limão, sal, alho','alecrim'], p:'Tempere o frango, coloque na assadeira com os legumes e asse até dourar.'},
     {n:'Peixe grelhado com salada', t:'20 min', i:['1 filé de peixe','folhas e tomate','limão, azeite, sal'], p:'Grelhe o peixe temperado com limão e sal e sirva com a salada.'},
-    {n:'Carne de panela com abóbora', t:'50 min', i:['acém ou patinho em cubos','abóbora','cebola, alho, sal'], p:'Doure a carne, adicione água e cozinhe até amaciar. Junte a abóbora nos últimos 15 minutos.'}
+    {n:'Carne de panela com abóbora', t:'50 min', i:['acém ou patinho em cubos','abóbora','cebola, alho, sal'], p:'Doure a carne, adicione água e cozinhe até amaciar. Junte a abóbora nos últimos 15 minutos.'},
+    {n:'Peixe gratinado com queijo', q:1, t:'30 min', i:['1 filé de peixe','queijo muçarela','limão, sal','tomate em rodelas'], p:'Tempere o peixe com limão e sal, cubra com tomate e queijo e asse até gratinar.'},
+    {n:'Omelete de queijo, tomate e orégano', q:1, t:'10 min', i:['3 ovos','queijo minas ou muçarela','1 tomate picado','orégano'], p:'Bata os ovos, cozinhe em fogo baixo, recheie com o queijo e o tomate e dobre.'},
+    {n:'Frango com legumes e queijo', q:1, t:'35 min', i:['sobrecoxa ou peito de frango','abóbora e cenoura','queijo ralado','alho e sal'], p:'Asse o frango temperado com os legumes e finalize com o queijo por cima nos últimos 5 minutos.'}
+  ],
+  bebida:[
+    {n:'Suco de laranja espremido', t:'5 min', i:['3 a 4 laranjas','gelo (opcional)'], p:'Esprema na hora, sem açúcar e sem coar demais. Tome logo em seguida para aproveitar melhor.'},
+    {n:'Suco de morango', t:'5 min', i:['1 xícara de morangos','água ou água de coco gelada','gelo'], p:'Bata tudo no liquidificador, sem açúcar. Se quiser mais cremoso, use menos água.'},
+    {n:'Suco de abacaxi com hortelã', t:'5 min', i:['3 rodelas de abacaxi','folhas de hortelã','água gelada'], p:'Bata o abacaxi com a hortelã e a água. Sem açúcar nem adoçante.'},
+    {n:'Vitamina de abacate', q:1, t:'5 min', i:['1/2 abacate maduro','1 copo de leite (ou água de coco)','gelo','canela (opcional)'], p:'Bata tudo no liquidificador sem adoçar. O abacate já deixa a vitamina cremosa.'},
+    {n:'Vitamina de morango com leite', q:1, t:'5 min', i:['1 xícara de morangos','1 copo de leite','gelo'], p:'Bata tudo e tome sem açúcar.'},
+    {n:'Limonada sem açúcar', t:'5 min', i:['suco de 2 limões','água gelada','gelo','hortelã (opcional)'], p:'Misture o suco com a água e o gelo. Se quiser, bata com a hortelã.'},
+    {n:'Água de coco', t:'1 min', i:['1 copo de água de coco natural gelada'], p:'Pura, de preferência de coco verde e sem adição de açúcar.'},
+    {n:'Chá gelado de hibisco ou erva-doce', t:'10 min', i:['1 colher de sopa de hibisco ou erva-doce','500 ml de água quente','gelo e limão'], p:'Faça a infusão por 5 a 10 minutos, coe, deixe esfriar e sirva com gelo e limão. Sem açúcar.'}
   ]
 };
 
@@ -428,13 +450,13 @@ function vRanking(){
 function vReceitas(){
   const dia = Math.floor(Date.now()/864e5);
   return `
-  <div class="aviso">Ideias inspiradas na dieta da selva: comida de verdade, como carnes, ovos, frutas, raízes e legumes, sem ultraprocessados. Dietas restritivas não servem para todo mundo. Se tiver dúvida ou alguma condição de saúde, converse com um nutricionista.</div>
-  ${Object.entries(REFEICOES).map(([k,f])=>{
+  <div class="aviso">Ideias inspiradas na dieta da selva: comida de verdade, como carnes, ovos, frutas, raízes e legumes, sem ultraprocessados. No nosso grupo, o <b>queijo</b> (minas, coalho, muçarela) está liberado e marcado com 🧀. Evite os processados, como requeijão cremoso e queijo fatiado industrial. Suco só natural e <b>sem açúcar</b>. Dietas restritivas não servem para todo mundo. Se tiver dúvida ou alguma condição de saúde, converse com um nutricionista.</div>
+  ${[...Object.entries(REFEICOES), ['bebida',{nome:'Bebidas', emoji:'🥤'}]].map(([k,f])=>{
     const lista = RECEITAS[k]; const sug = lista[dia % lista.length];
     return `<section class="cartao">
       <h2>${f.emoji} ${f.nome}</h2>
-      <div class="hoje" style="margin:8px 0"><div class="sub">Sugestão de hoje</div><b>${esc(sug.n)}</b> <span class="sub">· ${esc(sug.t)}</span></div>
-      ${lista.map(r=>`<details class="receita"><summary><span>${esc(r.n)}</span><span class="sub">${esc(r.t)}</span></summary>
+      <div class="hoje" style="margin:8px 0"><div class="sub">Sugestão de hoje</div><b>${sug.q?'🧀 ':''}${esc(sug.n)}</b> <span class="sub">· ${esc(sug.t)}</span></div>
+      ${lista.map(r=>`<details class="receita"><summary><span>${r.q?'🧀 ':''}${esc(r.n)}</span><span class="sub">${esc(r.t)}</span></summary>
         <ul>${r.i.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><p>${esc(r.p)}</p></details>`).join('')}
     </section>`;}).join('')}`;
 }
