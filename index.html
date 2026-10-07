@@ -221,6 +221,7 @@ async function carregarTudo(){
   S.gid = achado ? achado.id : (S.grupos[0] ? S.grupos[0].id : null);
   if(S.gid) await carregarGrupo();
   S.fase='pronto'; render();
+  if(typeof registrarPush==='function') registrarPush(false);
 }
 async function carregarGrupo(){
   const desde = new Date(Date.now()-14*864e5).toISOString();
@@ -311,6 +312,7 @@ function vInicio(){
   const pg = pagas();
   const pendentes = S.minhas.filter(r=>r.tipo==='escorregada' && !pg.has(r.id));
   return `
+  ${bannerPush()}
   <section class="destaque">
     <div class="rotulo">Seus pontos hoje</div>
     <div class="num">${pts}</div>
@@ -506,6 +508,7 @@ const ACOES = {
     if(!data.session){ S.modo='entrar'; render(); toast('Conta criada! Confirme o e-mail e depois entre.'); return; }
     S.user=data.user; await carregarTudo();
   }),
+  'ativar-push': () => registrarPush(true),
   sair: async () => { await sb.auth.signOut(); S.user=null; S.perfil=null; S.grupos=[]; S.gid=null; S.fase='pronto'; S.modo='entrar'; render(); },
 
   'criar-grupo': el => comCarga(el,'Criando…', async () => {
@@ -567,6 +570,32 @@ document.addEventListener('change', async e => {
   }catch(err){ toast(erroAmigavel(err)); }
 });
 document.addEventListener('input', e => { if(e.target.id==='f_desafio'){ S.desafioSel=''; document.querySelectorAll('.chips button').forEach(b=>b.classList.remove('on')); atualizarBotao(); } });
+
+/* ============ Notificações (lembretes automáticos) ============ */
+const VAPID_PUBLIC = 'BKmIqi2leWunc67TviMMfVj7g9GXaHnSj-vyOtJkf_ivl5IwzuqI22SDbYZUdoRp9B8Xdx6GQ6Ta3lX5iQdFHfg';
+const pushOk = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+function b64ToU8(b){ const p='='.repeat((4-b.length%4)%4), r=(b+p).replace(/-/g,'+').replace(/_/g,'/'), raw=atob(r); return Uint8Array.from([...raw].map(c=>c.charCodeAt(0))); }
+async function registrarPush(pedir){
+  if(!pushOk() || !S.user) return;
+  try{
+    const reg = await navigator.serviceWorker.register('sw.js');
+    await navigator.serviceWorker.ready;
+    if(Notification.permission==='default' && pedir) await Notification.requestPermission();
+    if(Notification.permission!=='granted') return;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub) sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:b64ToU8(VAPID_PUBLIC)});
+    const j = sub.toJSON();
+    await sb.from('push_subscriptions').upsert({endpoint:j.endpoint, user_id:S.user.id, p256dh:j.keys.p256dh, auth:j.keys.auth});
+    S.pushAtivo = true; render();
+  }catch(e){ console.warn('push', e); }
+}
+function bannerPush(){
+  if(!pushOk() || S.pushAtivo || Notification.permission==='granted' || Notification.permission==='denied') return '';
+  return '<div class="aviso" style="display:flex;gap:10px;align-items:center;justify-content:space-between"><span>🔔 Ative os lembretes das refeições</span><button class="btn manga" style="padding:8px 14px" data-act="ativar-push">Ativar</button></div>';
+}
+// o iPhone só aceita pedir permissão depois de um toque: o primeiro toque no app já abre o pedido
+document.addEventListener('click', () => { if(S.user && pushOk() && Notification.permission==='default' && !S.pediu){ S.pediu=true; registrarPush(true); } }, {capture:true});
+if(pushOk()) navigator.serviceWorker.register('sw.js').catch(()=>{});
 
 init();
 </script>
