@@ -73,6 +73,17 @@ h3{font-family:var(--display);font-size:17px;font-weight:600}
 .tag.manga{background:#fdf0c9;color:#7a5600}
 .foto{width:100%;max-height:340px;object-fit:cover;border-radius:12px;margin-top:8px;background:var(--folha);display:block}
 .mini{font-size:13px;font-weight:700;color:var(--hibisco);padding:6px 0}
+.inter{display:flex;gap:8px;margin-top:10px}
+.reagir{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;min-height:36px;border-radius:999px;border:1.5px solid var(--linha);background:#fff;font-weight:700;font-size:14px;color:var(--suave)}
+.reagir.on{border-color:var(--hibisco);color:var(--hibisco);background:#fff5f8}
+.coments{margin-top:10px;display:flex;flex-direction:column;gap:10px;background:var(--papel);border-radius:12px;padding:10px}
+.coment{display:flex;gap:8px;font-size:15px;line-height:1.35}
+.coment .av{width:28px;height:28px;border-radius:50%;background:var(--folha);display:grid;place-items:center;font-size:15px;flex:none}
+.coment .quando{font-size:12px}
+.coment .mini{padding:0 0 0 6px;font-size:12px}
+.novo{display:flex;gap:8px}
+.novo input{flex:1;min-width:0}
+.novo .btn{padding:10px 16px}
 .rank{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--linha)}
 .rank:first-child{border-top:0}
 .pos{width:34px;text-align:center;font-size:24px;font-family:var(--display);font-weight:800;color:var(--suave)}
@@ -175,7 +186,8 @@ const RECEITAS = {
 
 /* ============ Estado ============ */
 const S = {user:null, perfil:null, grupos:[], gid:null, tab:'inicio', feed:[], minhas:[], membros:{},
-           rank:[], periodo:'semana', urls:{}, blob:null, modo:'entrar', emoji:'🌿', fase:'carregando'};
+           rank:[], periodo:'semana', urls:{}, blob:null, modo:'entrar', emoji:'🌿', fase:'carregando',
+           curtidas:{}, coments:{}, abertos:new Set(), rasc:{}};
 
 /* ============ Utilidades ============ */
 const $ = s => document.querySelector(s);
@@ -233,7 +245,19 @@ async function carregarGrupo(){
   S.membros = {}; (r1.data||[]).forEach(m=>S.membros[m.user_id]=m);
   S.feed = r2.data||[]; S.minhas = r3.data||[];
   await carregarFotos([...S.feed,...S.minhas]);
+  await carregarInteracoes();
   await carregarRanking();
+}
+async function carregarInteracoes(){
+  S.curtidas = {}; S.coments = {};
+  const ids = S.feed.map(r=>r.id);
+  if(!ids.length) return;
+  const [c1,c2] = await Promise.all([
+    sb.from('curtidas').select('registro_id,user_id').in('registro_id',ids),
+    sb.from('comentarios').select('*').in('registro_id',ids).order('criado_em',{ascending:true})
+  ]);
+  (c1.data||[]).forEach(x=>(S.curtidas[x.registro_id]=S.curtidas[x.registro_id]||new Set()).add(x.user_id));
+  (c2.data||[]).forEach(x=>(S.coments[x.registro_id]=S.coments[x.registro_id]||[]).push(x));
 }
 async function carregarFotos(lista){
   const paths = [...new Set(lista.map(r=>r.foto_path).filter(p=>p && !S.urls[p]))];
@@ -340,7 +364,7 @@ function itemFeed(r){
   if(r.tipo==='escorregada'){ tag=`<span class="tag rosa">🍫 Escorregada</span>${pg.has(r.id)?'<span class="tag">pago ✓</span>':''}`; texto=r.descricao||''; }
   if(r.tipo==='desafio'){ tag='<span class="tag manga">💪 Desafio pago</span>'; texto=r.desafio||''; }
   const apagavel = eu && (Date.now()-new Date(r.criado_em).getTime() < 10*60*1000);
-  return `<div class="item">
+  return `<div class="item" data-id="${r.id}">
     <div class="avatar">${esc(m.emoji)}</div>
     <div class="corpo">
       <div class="linha1"><span class="nome">${esc(eu?'Você':m.nome)}</span><span class="pts ${ptsClasse(r.pontos)}">${ptsTexto(r.pontos)}</span></div>
@@ -348,8 +372,39 @@ function itemFeed(r){
       <div style="margin-top:4px">${tag}</div>
       ${texto?`<div style="margin-top:4px">${esc(texto)}</div>`:''}
       ${r.foto_path && S.urls[r.foto_path]?`<img class="foto" loading="lazy" alt="Foto registrada" src="${esc(S.urls[r.foto_path])}">`:''}
+      ${interacao(r)}
       ${apagavel?`<button class="mini" data-act="apagar" data-id="${r.id}">Desfazer registro</button>`:''}
     </div></div>`;
+}
+
+function interacao(r){
+  const cur = S.curtidas[r.id] || new Set();
+  const lista = S.coments[r.id] || [];
+  const curti = cur.has(S.user.id);
+  const aberto = S.abertos.has(r.id);
+  const blocoComent = c => {
+    const m = S.membros[c.user_id] || {nome:'Alguém', emoji:'🌿'};
+    const meu = c.user_id===S.user.id;
+    return `<div class="coment"><span class="av">${esc(m.emoji)}</span><div>
+      <b>${esc(meu?'Você':m.nome)}</b> <span class="quando">${quando(c.criado_em)}</span>${meu?`<button class="mini" data-act="apagar-coment" data-id="${c.id}" data-reg="${r.id}">apagar</button>`:''}
+      <div>${esc(c.texto)}</div></div></div>`;
+  };
+  return `<div class="inter">
+    <button class="reagir ${curti?'on':''}" data-act="curtir" data-id="${r.id}" aria-pressed="${curti}" aria-label="Curtir">${curti?'❤️':'🤍'} <span>${cur.size||''}</span></button>
+    <button class="reagir ${aberto?'on':''}" data-act="abrir-coment" data-id="${r.id}" aria-expanded="${aberto}">💬 <span>${lista.length||'Comentar'}</span></button>
+  </div>
+  ${aberto?`<div class="coments">
+    ${lista.map(blocoComent).join('')}
+    <div class="novo"><input type="text" maxlength="300" placeholder="Escreva um comentário…" data-rasc="${r.id}" value="${esc(S.rasc[r.id]||'')}" autocomplete="off">
+      <button class="btn verde" data-act="enviar-coment" data-id="${r.id}">Enviar</button></div>
+  </div>`:''}`;
+}
+function campoComent(id){ return document.querySelector(`input[data-rasc="${id}"]`); }
+function atualizarItem(id){
+  const r = S.feed.find(x=>x.id===id), el = document.querySelector(`.item[data-id="${id}"]`);
+  if(!r || !el){ render(); return; }
+  const tmp = document.createElement('div'); tmp.innerHTML = itemFeed(r).trim();
+  el.replaceWith(tmp.firstElementChild);
 }
 
 function vRanking(){
@@ -546,6 +601,45 @@ const ACOES = {
     if(error) throw error;
     fecharFolha(); await carregarGrupo(); render(); toast('Desafio pago! +10 pontos 💪');
   }),
+  curtir: async el => {
+    const id = el.dataset.id; if(!S.feed.find(x=>x.id===id)) return;
+    const set = S.curtidas[id] || (S.curtidas[id] = new Set());
+    const tinha = set.has(S.user.id);
+    tinha ? set.delete(S.user.id) : set.add(S.user.id);
+    atualizarItem(id);
+    const {error} = tinha
+      ? await sb.from('curtidas').delete().eq('registro_id',id).eq('user_id',S.user.id)
+      : await sb.from('curtidas').insert({registro_id:id, user_id:S.user.id, grupo_id:S.gid});
+    if(error && !/duplicate/i.test(error.message)){
+      tinha ? set.add(S.user.id) : set.delete(S.user.id);
+      atualizarItem(id); toast(erroAmigavel(error));
+    }
+  },
+  'abrir-coment': el => {
+    const id = el.dataset.id;
+    S.abertos.has(id) ? S.abertos.delete(id) : S.abertos.add(id);
+    atualizarItem(id);
+    if(S.abertos.has(id)){ const i = campoComent(id); if(i) i.focus(); }
+  },
+  'enviar-coment': async el => {
+    const id = el.dataset.id, inp = campoComent(id);
+    const texto = (inp ? inp.value : '').trim(); if(!texto) return;
+    el.disabled = true;
+    const {data,error} = await sb.from('comentarios').insert({registro_id:id, grupo_id:S.gid, user_id:S.user.id, texto}).select().single();
+    if(error){ el.disabled = false; toast(erroAmigavel(error)); return; }
+    (S.coments[id] = S.coments[id] || []).push(data);
+    S.rasc[id] = '';
+    atualizarItem(id);
+    const i = campoComent(id); if(i) i.focus();
+  },
+  'apagar-coment': async el => {
+    if(!confirm('Apagar seu comentário?')) return;
+    const {error} = await sb.from('comentarios').delete().eq('id',el.dataset.id);
+    if(error){ toast(erroAmigavel(error)); return; }
+    const rid = el.dataset.reg;
+    S.coments[rid] = (S.coments[rid]||[]).filter(c=>c.id!==el.dataset.id);
+    atualizarItem(rid);
+  },
   apagar: async el => {
     if(!confirm('Desfazer esse registro?')) return;
     const {error} = await sb.from('registros').delete().eq('id',el.dataset.id);
@@ -569,7 +663,15 @@ document.addEventListener('change', async e => {
     atualizarBotao();
   }catch(err){ toast(erroAmigavel(err)); }
 });
-document.addEventListener('input', e => { if(e.target.id==='f_desafio'){ S.desafioSel=''; document.querySelectorAll('.chips button').forEach(b=>b.classList.remove('on')); atualizarBotao(); } });
+document.addEventListener('input', e => { if(e.target.dataset && e.target.dataset.rasc){ S.rasc[e.target.dataset.rasc] = e.target.value; return; }
+  if(e.target.id==='f_desafio'){ S.desafioSel=''; document.querySelectorAll('.chips button').forEach(b=>b.classList.remove('on')); atualizarBotao(); } });
+
+document.addEventListener('keydown', e => {
+  if(e.key==='Enter' && e.target.dataset && e.target.dataset.rasc){
+    e.preventDefault();
+    const b = e.target.closest('.novo').querySelector('[data-act="enviar-coment"]'); if(b) b.click();
+  }
+});
 
 /* ============ Notificações (lembretes automáticos) ============ */
 const VAPID_PUBLIC = 'BKmIqi2leWunc67TviMMfVj7g9GXaHnSj-vyOtJkf_ivl5IwzuqI22SDbYZUdoRp9B8Xdx6GQ6Ta3lX5iQdFHfg';
