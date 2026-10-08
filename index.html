@@ -57,6 +57,8 @@ h2{font-family:var(--display);font-size:20px;font-weight:800;letter-spacing:-.01
 h3{font-family:var(--display);font-size:17px;font-weight:600}
 .sub{color:var(--suave);font-size:14px}
 .aviso{background:var(--folha);border-radius:14px;padding:12px 14px;font-size:14px;color:#33502a}
+.carbo{display:flex;gap:10px;align-items:flex-start;background:#fdf0c9;border-radius:12px;padding:10px 12px;font-size:14px;color:#6b4a00;font-weight:600}
+.carbo input{width:20px;height:20px;margin-top:1px;flex:none;accent-color:var(--manga)}
 .pendente{border:2px solid var(--hibisco);background:#fff5f8}
 .pendente h3{color:var(--hibisco)}
 .item{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--linha)}
@@ -232,6 +234,11 @@ function erroAmigavel(e){
   if(/Email not confirmed/i.test(m)) return 'Confirme seu e-mail pelo link que enviamos e tente de novo.';
   return m;
 }
+const RE_CARBO = /\b(cuscuz|pao|paes|paozinho|tapioca|arroz|macarrao|espaguete|lasanha|nhoque|bolo|biscoito|bolacha|torrada|farofa|pizza|sanduiche|cereal|granola)\b/;
+function acharCarbo(txt){
+  const t = String(txt||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const m = t.match(RE_CARBO); return m ? m[1] : null;
+}
 function ptsClasse(p){ return p>0?'mais':p<0?'menos':'zero'; }
 function ptsTexto(p){ return (p>0?'+':'')+p; }
 const meu = () => S.perfil || {nome:'Você', emoji:'🌿'};
@@ -382,7 +389,7 @@ function itemFeed(r){
   const eu = r.user_id===S.user.id;
   const pg = pagas();
   let tag='', texto='';
-  if(r.tipo==='refeicao'){ const f=REFEICOES[r.refeicao]||{nome:'Refeição',emoji:'🍽️'}; tag=`<span class="tag">${f.emoji} ${f.nome}</span>`; texto=r.descricao||''; }
+  if(r.tipo==='refeicao'){ const f=REFEICOES[r.refeicao]||{nome:'Refeição',emoji:'🍽️'}; tag=`<span class="tag">${f.emoji} ${f.nome}</span>${r.carbo?'<span class="tag manga">🍞 com carbo</span>':''}`; texto=r.descricao||''; }
   if(r.tipo==='escorregada'){ tag=`<span class="tag rosa">🍫 Escorregada</span>${pg.has(r.id)?'<span class="tag">pago ✓</span>':''}`; texto=r.descricao||''; }
   if(r.tipo==='desafio'){ tag='<span class="tag manga">💪 Desafio pago</span>'; texto=r.desafio||''; }
   const apagavel = eu && (Date.now()-new Date(r.criado_em).getTime() < 10*60*1000);
@@ -444,7 +451,7 @@ function vRanking(){
         <div class="quando" style="margin-top:4px">${r.refeicoes} refeições · ${r.escorregadas} escorregadas · ${r.desafios} desafios</div>
       </div></div>`).join(''):'<div class="vazio">Sem pontos ainda.</div>'}
   </section>
-  <section class="aviso"><b>Como pontua:</b> refeição com foto vale +10 (até 5 por dia). Escorregada vale −10. Pagando com um desafio e foto de comprovação, você ganha +10 e recupera os pontos.</section>`;
+  <section class="aviso"><b>Como pontua:</b> refeição com foto vale +10 (até 5 por dia). Se tiver cuscuz, pão, arroz ou outro carboidrato fora da dieta, vale +5. Escorregada vale −10. Pagando com um desafio e foto de comprovação, você ganha +10 e recupera os pontos.</section>`;
 }
 
 function vReceitas(){
@@ -495,6 +502,7 @@ function folhaRefeicao(){
     <div class="chips" id="chipsRef">${Object.entries(REFEICOES).map(([k,v])=>`<button type="button" data-act="ref" data-v="${k}" class="${k===sug?'on':''}">${v.emoji} ${v.nome}</button>`).join('')}</div>
     ${campoFoto}
     <label class="campo">O que você comeu? (opcional)<textarea id="f_desc" maxlength="200" placeholder="Ex.: Frango grelhado com batata-doce"></textarea></label>
+    <label class="carbo"><input type="checkbox" id="f_carbo"><span id="txtCarbo">🍞 Tem carboidrato fora da dieta (cuscuz, pão, arroz…)? Marque aqui: a refeição vale 5 pontos em vez de 10.</span></label>
     <button class="btn verde full" id="enviar" data-act="salvar-refeicao" disabled>Enviar refeição</button>`);
   S.refSel = sug;
 }
@@ -607,9 +615,10 @@ const ACOES = {
 
   'salvar-refeicao': el => comCarga(el,'Enviando…', async () => {
     const foto = await enviarFoto();
-    const {error} = await sb.from('registros').insert({grupo_id:S.gid,user_id:S.user.id,tipo:'refeicao',refeicao:S.refSel,descricao:$('#f_desc').value.trim()||null,foto_path:foto});
+    const {error} = await sb.from('registros').insert({grupo_id:S.gid,user_id:S.user.id,tipo:'refeicao',refeicao:S.refSel,descricao:$('#f_desc').value.trim()||null,foto_path:foto,carbo:$('#f_carbo').checked});
     if(error) throw error;
-    fecharFolha(); await carregarGrupo(); render(); toast('Refeição registrada! 🌿');
+    const comCarbo = $('#f_carbo').checked;
+    fecharFolha(); await carregarGrupo(); render(); toast(comCarbo ? 'Refeição registrada! +5 pontos 🍞' : 'Refeição registrada! +10 pontos 🌿');
   }),
   'salvar-escorregada': el => comCarga(el,'Salvando…', async () => {
     const {error} = await sb.from('registros').insert({grupo_id:S.gid,user_id:S.user.id,tipo:'escorregada',descricao:$('#f_desc').value.trim()||null});
@@ -686,6 +695,13 @@ document.addEventListener('change', async e => {
   }catch(err){ toast(erroAmigavel(err)); }
 });
 document.addEventListener('input', e => { if(e.target.dataset && e.target.dataset.rasc){ S.rasc[e.target.dataset.rasc] = e.target.value; return; }
+  if(e.target.id==='f_desc'){
+    const cb = $('#f_carbo'), tx = $('#txtCarbo'); if(!cb) return;
+    const achou = acharCarbo(e.target.value);
+    if(achou){ cb.checked = true; cb.disabled = true; tx.textContent = '🍞 Detectei "' + achou + '" na descrição: essa refeição vale 5 pontos.'; }
+    else { cb.disabled = false; tx.textContent = '🍞 Tem carboidrato fora da dieta (cuscuz, pão, arroz…)? Marque aqui: a refeição vale 5 pontos em vez de 10.'; }
+    return;
+  }
   if(e.target.id==='f_desafio'){ S.desafioSel=''; document.querySelectorAll('.chips button').forEach(b=>b.classList.remove('on')); atualizarBotao(); } });
 
 document.addEventListener('keydown', e => {
