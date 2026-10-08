@@ -95,7 +95,7 @@ h3{font-family:var(--display);font-size:17px;font-weight:600}
 .seg button{flex:1;padding:8px;border-radius:999px;font-weight:700;font-size:14px;color:#33502a}
 .seg button.on{background:var(--floresta);color:#fff}
 nav{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--linha);padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
-nav div{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr)}
+nav div{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr)}
 nav button{padding:10px 4px 9px;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:12px;font-weight:600;color:var(--suave)}
 nav button span{font-size:22px;filter:grayscale(1);opacity:.7}
 nav button.on{color:var(--floresta)} nav button.on span{filter:none;opacity:1}
@@ -151,6 +151,12 @@ const REFEICOES = {
   almoco: {nome:'Almoço',        emoji:'🍽️'},
   lanche: {nome:'Lanche',        emoji:'🍌'},
   jantar: {nome:'Jantar',        emoji:'🌙'}
+};
+const ATIVIDADES = {
+  academia:  {nome:'Academia',  emoji:'🏋️'},
+  bicicleta: {nome:'Bicicleta', emoji:'🚴'},
+  caminhada: {nome:'Caminhada', emoji:'🚶'},
+  corrida:   {nome:'Corrida',   emoji:'🏃'}
 };
 const DESAFIOS = ['10 min de bicicleta','20 polichinelos','30 agachamentos','3 pranchas de 1 min','15 min de caminhada','15 flexões'];
 const EMOJIS = ['🌿','🥑','🐆','🦜','🐒','🌴','🔥','🥩'];
@@ -211,7 +217,7 @@ const RECEITAS = {
 /* ============ Estado ============ */
 const S = {user:null, perfil:null, grupos:[], gid:null, tab:'inicio', feed:[], minhas:[], membros:{},
            rank:[], periodo:'semana', urls:{}, blob:null, modo:'entrar', emoji:'🌿', fase:'carregando',
-           curtidas:{}, coments:{}, abertos:new Set(), rasc:{}};
+           curtidas:{}, coments:{}, abertos:new Set(), rasc:{}, treinos:[], ativSel:''};
 
 /* ============ Utilidades ============ */
 const $ = s => document.querySelector(s);
@@ -266,14 +272,15 @@ async function carregarTudo(){
 }
 async function carregarGrupo(){
   const desde = new Date(Date.now()-14*864e5).toISOString();
-  const [r1,r2,r3] = await Promise.all([
-    sb.rpc('ranking',{p_grupo:S.gid}),
+  const [r1,r2,r3,r4] = await Promise.all([
+    sb.rpc('ranking_v2',{p_grupo:S.gid}),
     sb.from('registros').select('*').eq('grupo_id',S.gid).order('criado_em',{ascending:false}).limit(60),
-    sb.from('registros').select('*').eq('grupo_id',S.gid).eq('user_id',S.user.id).gte('criado_em',desde).order('criado_em',{ascending:false})
+    sb.from('registros').select('*').eq('grupo_id',S.gid).eq('user_id',S.user.id).gte('criado_em',desde).order('criado_em',{ascending:false}),
+    sb.from('treinos').select('*').eq('grupo_id',S.gid).order('criado_em',{ascending:false}).limit(40)
   ]);
   S.membros = {}; (r1.data||[]).forEach(m=>S.membros[m.user_id]=m);
-  S.feed = r2.data||[]; S.minhas = r3.data||[];
-  await carregarFotos([...S.feed,...S.minhas]);
+  S.feed = r2.data||[]; S.minhas = r3.data||[]; S.treinos = r4.data||[];
+  await carregarFotos([...S.feed,...S.minhas,...S.treinos]);
   await carregarInteracoes();
   await carregarRanking();
 }
@@ -298,7 +305,7 @@ async function carregarRanking(){
   let desde = null;
   if(S.periodo==='hoje') desde = inicioDoDia().toISOString();
   if(S.periodo==='semana') desde = inicioDaSemana().toISOString();
-  const {data} = await sb.rpc('ranking',{p_grupo:S.gid, p_desde:desde});
+  const {data} = await sb.rpc('ranking_v2',{p_grupo:S.gid, p_desde:desde});
   S.rank = data||[];
 }
 async function recarregar(silencioso){
@@ -314,13 +321,13 @@ function render(){
   if(!S.user){ app.innerHTML = telaEntrada(); return; }
   if(!S.gid){ app.innerHTML = telaGrupo(); return; }
   const g = S.grupos.find(x=>x.id===S.gid);
-  const corpo = S.tab==='inicio' ? vInicio() : S.tab==='ranking' ? vRanking() : S.tab==='receitas' ? vReceitas() : vPerfil();
+  const corpo = S.tab==='inicio' ? vInicio() : S.tab==='ranking' ? vRanking() : S.tab==='treino' ? vTreino() : S.tab==='receitas' ? vReceitas() : vPerfil();
   app.innerHTML = `
     <header class="topo"><div class="marca"><img src="icon-192.png" alt=""><div><h1>Desafio da Selva</h1><small>${esc(g?g.nome:'')}</small></div></div>
       <button class="recarregar" data-act="recarregar" aria-label="Atualizar">⟳</button></header>
     <main>${corpo}</main>
     <nav><div>
-      ${[['inicio','🏠','Início'],['ranking','🏆','Ranking'],['receitas','🥗','Receitas'],['perfil','👤','Perfil']]
+      ${[['inicio','🏠','Início'],['ranking','🏆','Ranking'],['treino','💪','Treino'],['receitas','🥗','Receitas'],['perfil','👤','Perfil']]
         .map(([k,e,l])=>`<button data-act="tab" data-v="${k}" class="${S.tab===k?'on':''}"><span>${e}</span>${l}</button>`).join('')}
     </div></nav>`;
 }
@@ -360,7 +367,7 @@ function pagas(){ return new Set([...S.feed,...S.minhas].filter(r=>r.tipo==='des
 
 function vInicio(){
   const h = hoje();
-  const pts = h.reduce((a,r)=>a+r.pontos,0);
+  const pts = h.reduce((a,r)=>a+r.pontos,0) + treinosHoje().reduce((a,t)=>a+t.pontos,0);
   const feitas = new Set(h.filter(r=>r.tipo==='refeicao').map(r=>r.refeicao));
   const pg = pagas();
   const pendentes = S.minhas.filter(r=>r.tipo==='escorregada' && !pg.has(r.id));
@@ -436,6 +443,40 @@ function atualizarItem(id){
   el.replaceWith(tmp.firstElementChild);
 }
 
+function meusTreinos(){ return S.treinos.filter(t=>t.user_id===S.user.id); }
+function treinosHoje(){ const i=inicioDoDia(); return meusTreinos().filter(t=>new Date(t.criado_em)>=i); }
+function itemTreino(t){
+  const m = S.membros[t.user_id] || {nome:'Alguém', emoji:'🌿'};
+  const eu = t.user_id===S.user.id;
+  const a = ATIVIDADES[t.atividade] || {nome:'Treino', emoji:'💪'};
+  const apagavel = eu && (Date.now()-new Date(t.criado_em).getTime() < 10*60*1000);
+  return `<div class="item">
+    <div class="avatar">${esc(m.emoji)}</div>
+    <div class="corpo">
+      <div class="linha1"><span class="nome">${esc(eu?'Você':m.nome)}</span><span class="pts mais">+${t.pontos}</span></div>
+      <div class="quando">${quando(t.criado_em)}</div>
+      <div style="margin-top:4px"><span class="tag manga">${a.emoji} ${a.nome}</span></div>
+      ${t.descricao?`<div style="margin-top:4px">${esc(t.descricao)}</div>`:''}
+      ${t.foto_path && S.urls[t.foto_path]?`<img class="foto" loading="lazy" alt="Foto do treino" src="${esc(S.urls[t.foto_path])}">`:''}
+      ${apagavel?`<button class="mini" data-act="apagar-treino" data-id="${t.id}">Desfazer treino</button>`:''}
+    </div></div>`;
+}
+function vTreino(){
+  const feitoHoje = treinosHoje().length>0;
+  const semana = meusTreinos().filter(t=>new Date(t.criado_em)>=inicioDaSemana()).length;
+  return `
+  <section class="destaque">
+    <div class="rotulo">Seus treinos esta semana</div>
+    <div class="num">${semana}</div>
+    <div class="refs"><span class="ref ${feitoHoje?'ok':''}">💪 Bônus de hoje${feitoHoje?' ✓':''}</span></div>
+  </section>
+  <button class="btn manga full" data-act="abrir-treino" ${feitoHoje?'disabled':''}>${feitoHoje?'Treino de hoje registrado ✓':'📷 Registrar treino (+10)'}</button>
+  <div class="aviso">Fez academia, bicicleta, caminhada ou corrida? Tire a foto na hora e ganhe <b>+10 pontos de bônus</b>. Vale 1 treino por dia.</div>
+  <section class="cartao"><h2 style="margin-bottom:10px">Treinos do grupo</h2>
+    ${S.treinos.length ? S.treinos.map(itemTreino).join('') : '<div class="vazio">Ninguém treinou ainda. Bora sair na frente! 🏃</div>'}
+  </section>`;
+}
+
 function vRanking(){
   const max = Math.max(1, ...S.rank.map(r=>r.pontos));
   const medalha = i => i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1);
@@ -448,10 +489,10 @@ function vRanking(){
       <div style="flex:1;min-width:0">
         <div class="linha1" style="display:flex;justify-content:space-between"><span class="nome" style="font-weight:700">${esc(r.user_id===S.user.id?r.nome+' (você)':r.nome)}</span><span class="pts ${ptsClasse(r.pontos)}">${r.pontos}</span></div>
         <div class="barra"><i style="width:${Math.max(0,Math.round(r.pontos/max*100))}%"></i></div>
-        <div class="quando" style="margin-top:4px">${r.refeicoes} refeições · ${r.escorregadas} escorregadas · ${r.desafios} desafios</div>
+        <div class="quando" style="margin-top:4px">${r.refeicoes} refeições · ${r.escorregadas} escorregadas · ${r.desafios} desafios · ${r.treinos} treinos</div>
       </div></div>`).join(''):'<div class="vazio">Sem pontos ainda.</div>'}
   </section>
-  <section class="aviso"><b>Como pontua:</b> refeição com foto vale +10 (até 5 por dia). Se tiver cuscuz, pão, arroz ou outro carboidrato fora da dieta, vale +5. Escorregada vale −10. Pagando com um desafio e foto de comprovação, você ganha +10 e recupera os pontos.</section>`;
+  <section class="aviso"><b>Como pontua:</b> refeição com foto vale +10 (até 5 por dia). Se tiver cuscuz, pão, arroz ou outro carboidrato fora da dieta, vale +5. Treino com foto vale +10 de bônus (1 por dia). Escorregada vale −10. Pagando com um desafio e foto de comprovação, você ganha +10 e recupera os pontos.</section>`;
 }
 
 function vReceitas(){
@@ -506,6 +547,15 @@ function folhaRefeicao(){
     <button class="btn verde full" id="enviar" data-act="salvar-refeicao" disabled>Enviar refeição</button>`);
   S.refSel = sug;
 }
+function folhaTreino(){
+  S.ativSel = '';
+  abrirFolha(`${cabFolha('Registrar treino 💪')}
+    <p class="sub">Escolha a atividade e tire a foto na hora. Vale +10 pontos de bônus.</p>
+    <div class="chips" id="chipsAtiv">${Object.entries(ATIVIDADES).map(([k,v])=>`<button type="button" data-act="ativ" data-v="${k}">${v.emoji} ${v.nome}</button>`).join('')}</div>
+    ${campoFoto}
+    <label class="campo">Detalhes (opcional)<textarea id="f_desc" maxlength="200" placeholder="Ex.: 5 km em 30 minutos"></textarea></label>
+    <button class="btn manga full" id="enviar" data-act="salvar-treino" disabled>Enviar treino</button>`);
+}
 function folhaEscorregada(){
   abrirFolha(`${cabFolha('Escorreguei 🍫')}
     <p class="sub">Tudo bem, acontece! Conta o que foi. Você perde 10 pontos, e pode recuperar pagando com um desafio.</p>
@@ -554,7 +604,7 @@ async function enviarFoto(){
 function atualizarBotao(){
   const b=$('#enviar'); if(!b) return;
   const precisaTexto = b.dataset.act==='salvar-desafio';
-  const texto = precisaTexto ? ($('#f_desafio').value.trim() || S.desafioSel) : true;
+  const texto = precisaTexto ? ($('#f_desafio').value.trim() || S.desafioSel) : (b.dataset.act==='salvar-treino' ? !!S.ativSel : true);
   b.disabled = !(S.blob && texto);
 }
 
@@ -577,6 +627,20 @@ const ACOES = {
   chip: el => { S.desafioSel=el.dataset.v; $('#f_desafio').value=''; document.querySelectorAll('.chips button').forEach(b=>b.classList.toggle('on',b===el)); atualizarBotao(); },
   'abrir-refeicao': () => folhaRefeicao(),
   'abrir-escorregada': () => folhaEscorregada(),
+  'abrir-treino': () => folhaTreino(),
+  ativ: el => { S.ativSel=el.dataset.v; document.querySelectorAll('#chipsAtiv button').forEach(b=>b.classList.toggle('on',b===el)); atualizarBotao(); },
+  'salvar-treino': el => comCarga(el,'Enviando…', async () => {
+    const foto = await enviarFoto();
+    const {error} = await sb.from('treinos').insert({grupo_id:S.gid,user_id:S.user.id,atividade:S.ativSel,descricao:$('#f_desc').value.trim()||null,foto_path:foto});
+    if(error) throw error;
+    fecharFolha(); await carregarGrupo(); render(); toast('Treino registrado! +10 pontos 💪');
+  }),
+  'apagar-treino': async el => {
+    if(!confirm('Desfazer esse treino?')) return;
+    const {error} = await sb.from('treinos').delete().eq('id',el.dataset.id);
+    if(error){ toast(erroAmigavel(error)); return; }
+    await carregarGrupo(); render(); toast('Treino desfeito');
+  },
   'abrir-pagar': el => folhaPagar(el.dataset.id),
   grupo: async el => { S.gid=el.dataset.id; localStorage.setItem('selva_gid',S.gid); S.fase='carregando'; render(); await carregarGrupo(); S.fase='pronto'; S.tab='inicio'; render(); },
 
