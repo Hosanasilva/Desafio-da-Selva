@@ -533,6 +533,7 @@ function regrasHtml(){
     <ul>
       ${Object.entries(REFEICOES).map(([k,v])=>`<li>${v.emoji} ${v.nome}: ${JANELAS[k][2]}</li>`).join('')}
       <li>Cada refeição vale <b>uma vez por dia</b> e só no horário dela. Esqueceu? Não dá para registrar depois.</li>
+      <li>Entre 17:30 e 17:59 o lanche e o jantar ficam abertos juntos: escolha qual registrar.</li>
       <li>Errou o registro? Você tem 10 minutos para desfazer.</li>
     </ul>
     <h3>🎯 Pontos</h3>
@@ -706,28 +707,30 @@ function cabFolha(t){ return `<div class="cab"><h2>${t}</h2><button class="fecha
 const campoFoto = `<label class="camera" id="fotoBox"><input type="file" accept="image/*" capture="environment" id="fotoIn" hidden><span>📷 Tirar foto<br><small class="sub">A data e a hora ficam marcadas na imagem</small></span></label>`;
 
 // mesmas janelas de horário do servidor (o servidor é quem manda; aqui é só para orientar)
-const JANELAS = {cafe:[240,660,'04:00 às 10:59'], almoco:[660,870,'11:00 às 14:29'], lanche:[870,1110,'14:30 às 18:29'], jantar:[1110,1440,'a partir de 18:30']};
-function refeicaoAgora(){
+const JANELAS = {cafe:[240,660,'04:00 às 10:59'], almoco:[660,900,'11:00 às 14:59'], lanche:[900,1080,'15:00 às 17:59'], jantar:[1050,1440,'a partir de 17:30']};
+function refeicoesAbertas(){
   const d = new Date(), m = d.getHours()*60 + d.getMinutes();
-  return Object.keys(JANELAS).find(k => m>=JANELAS[k][0] && m<JANELAS[k][1]) || null;
+  return Object.keys(JANELAS).filter(k => m>=JANELAS[k][0] && m<JANELAS[k][1]);
 }
 function folhaRefeicao(){
-  const sug = refeicaoAgora();
   const horarios = `<div class="sub" style="line-height:1.6">${Object.entries(REFEICOES).map(([k,v])=>`${v.emoji} ${v.nome}: ${JANELAS[k][2]}`).join('<br>')}</div>`;
-  if(!sug){
+  const abertas = refeicoesAbertas();
+  if(!abertas.length){
     abrirFolha(`${cabFolha('Registrar refeição')}
       <div class="aviso">Agora não é horário de nenhuma refeição. Cada refeição só pode ser registrada no horário dela.</div>${horarios}`);
     return;
   }
-  const jaFez = S.minhas.some(r => r.tipo==='refeicao' && r.refeicao===sug && new Date(r.criado_em)>=inicioDoDia());
-  if(jaFez){
+  const jaFez = k => S.minhas.some(r => r.tipo==='refeicao' && r.refeicao===k && new Date(r.criado_em)>=inicioDoDia());
+  const livres = abertas.filter(k => !jaFez(k));
+  if(!livres.length){
     abrirFolha(`${cabFolha('Registrar refeição')}
-      <div class="aviso">Você já registrou ${REFEICOES[sug].nome.toLowerCase()} hoje. Cada refeição vale uma vez por dia.</div>${horarios}`);
+      <div class="aviso">Você já registrou ${abertas.map(k=>REFEICOES[k].nome.toLowerCase()).join(' e ')} hoje. Cada refeição vale uma vez por dia.</div>${horarios}`);
     return;
   }
+  const sug = livres[livres.length-1];
   abrirFolha(`${cabFolha('Registrar refeição')}
-    <div class="chips" id="chipsRef"><button type="button" class="on" disabled>${REFEICOES[sug].emoji} ${REFEICOES[sug].nome}</button></div>
-    <p class="sub">Só dá para registrar a refeição do horário atual, com a foto tirada na hora.</p>
+    <div class="chips" id="chipsRef">${livres.map(k=>`<button type="button" data-act="ref" data-v="${k}" class="${k===sug?'on':''}">${REFEICOES[k].emoji} ${REFEICOES[k].nome}</button>`).join('')}</div>
+    <p class="sub">${livres.length>1?'Nesse horário duas refeições estão abertas: escolha qual você vai registrar. ':''}Só vale foto tirada na hora.</p>
     ${campoFoto}
     <label class="campo">O que você comeu? (opcional)<textarea id="f_desc" maxlength="200" placeholder="Ex.: Frango grelhado com batata-doce"></textarea></label>
     <label class="carbo"><input type="checkbox" id="f_carbo"><span id="txtCarbo">🍞 Tem carboidrato fora da dieta (cuscuz, pão, arroz…)? Marque aqui: a refeição vale 5 pontos em vez de 10.</span></label>
