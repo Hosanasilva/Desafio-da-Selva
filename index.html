@@ -242,7 +242,7 @@ const RECEITAS = {
 /* ============ Estado ============ */
 const S = {user:null, perfil:null, grupos:[], gid:null, tab:'inicio', feed:[], minhas:[], membros:{},
            rank:[], periodo:'semana', urls:{}, blob:null, modo:'entrar', emoji:'🌿', fase:'carregando',
-           curtidas:{}, coments:{}, abertos:new Set(), rasc:{}, treinos:[], ativSel:'', pesos:[], refs:[], tipPeso:null};
+           curtidas:{}, coments:{}, abertos:new Set(), rasc:{}, treinos:[], ativSel:'', pesos:[], refs:[], tipPeso:null, evoGrupo:[]};
 
 /* ============ Utilidades ============ */
 const $ = s => document.querySelector(s);
@@ -311,22 +311,24 @@ async function carregarGrupo(){
   await carregarEvolucao();
 }
 async function carregarEvolucao(){
-  const [a,b] = await Promise.all([
+  const [a,b,c] = await Promise.all([
     sb.from('pesos').select('*').eq('user_id',S.user.id).order('data',{ascending:true}),
-    sb.from('registros').select('carbo,criado_em').eq('grupo_id',S.gid).eq('user_id',S.user.id).eq('tipo','refeicao')
+    sb.from('registros').select('carbo,criado_em').eq('grupo_id',S.gid).eq('user_id',S.user.id).eq('tipo','refeicao'),
+    sb.rpc('evolucao_grupo',{p_grupo:S.gid})
   ]);
-  S.pesos = a.data||[]; S.refs = b.data||[];
+  S.pesos = a.data||[]; S.refs = b.data||[]; S.evoGrupo = c.data||[];
 }
 async function carregarInteracoes(){
   S.curtidas = {}; S.coments = {};
-  const ids = S.feed.map(r=>r.id);
-  if(!ids.length) return;
-  const [c1,c2] = await Promise.all([
-    sb.from('curtidas').select('registro_id,user_id').in('registro_id',ids),
-    sb.from('comentarios').select('*').in('registro_id',ids).order('criado_em',{ascending:true})
+  const ids = S.feed.map(r=>r.id), tids = S.treinos.map(t=>t.id);
+  const [c1,c2,c3,c4] = await Promise.all([
+    ids.length ? sb.from('curtidas').select('registro_id,user_id').in('registro_id',ids) : {data:[]},
+    ids.length ? sb.from('comentarios').select('*').in('registro_id',ids).order('criado_em',{ascending:true}) : {data:[]},
+    tids.length ? sb.from('treino_curtidas').select('treino_id,user_id').in('treino_id',tids) : {data:[]},
+    tids.length ? sb.from('treino_comentarios').select('*').in('treino_id',tids).order('criado_em',{ascending:true}) : {data:[]}
   ]);
-  (c1.data||[]).forEach(x=>(S.curtidas[x.registro_id]=S.curtidas[x.registro_id]||new Set()).add(x.user_id));
-  (c2.data||[]).forEach(x=>(S.coments[x.registro_id]=S.coments[x.registro_id]||[]).push(x));
+  [...(c1.data||[]),...(c3.data||[])].forEach(x=>{ const k=x.registro_id||x.treino_id; (S.curtidas[k]=S.curtidas[k]||new Set()).add(x.user_id); });
+  [...(c2.data||[]),...(c4.data||[])].forEach(x=>{ const k=x.registro_id||x.treino_id; (S.coments[k]=S.coments[k]||[]).push(x); });
 }
 async function carregarFotos(lista){
   const paths = [...new Set(lista.map(r=>r.foto_path).filter(p=>p && !S.urls[p]))];
@@ -415,7 +417,6 @@ function vInicio(){
     <button class="btn verde" data-act="abrir-refeicao">📷 Registrar refeição</button>
     <button class="btn hibisco" data-act="abrir-escorregada">🍫 Escorreguei</button>
   </div>
-  <button class="btn linha full" data-act="abrir-regras">📜 Regras do desafio</button>
   ${cartaoCarinho()}
   ${pendentes.length?`<section class="cartao pendente"><h3>Escorregadas para pagar</h3>
     <p class="sub" style="margin-bottom:6px">Pague com um desafio e recupere os pontos.</p>
@@ -466,15 +467,18 @@ function interacao(r){
   </div>
   ${aberto?`<div class="coments">
     ${lista.map(blocoComent).join('')}
-    <div class="novo"><input type="text" maxlength="300" placeholder="Escreva um comentário…" data-rasc="${r.id}" value="${esc(S.rasc[r.id]||'')}" autocomplete="off">
+    <div class="novo"><input type="text" maxlength="300" placeholder="Comentar…" data-rasc="${r.id}" value="${esc(S.rasc[r.id]||'')}" autocomplete="off">
       <button class="btn verde" data-act="enviar-coment" data-id="${r.id}">Enviar</button></div>
   </div>`:''}`;
 }
 function campoComent(id){ return document.querySelector(`input[data-rasc="${id}"]`); }
+const ehTreino = id => S.treinos.some(x=>x.id===id);
+const tabInter = id => ehTreino(id) ? {cur:'treino_curtidas', com:'treino_comentarios', col:'treino_id'} : {cur:'curtidas', com:'comentarios', col:'registro_id'};
 function atualizarItem(id){
-  const r = S.feed.find(x=>x.id===id), el = document.querySelector(`.item[data-id="${id}"]`);
+  const ehT = ehTreino(id);
+  const r = ehT ? S.treinos.find(x=>x.id===id) : S.feed.find(x=>x.id===id), el = document.querySelector(`.item[data-id="${id}"]`);
   if(!r || !el){ render(); return; }
-  const tmp = document.createElement('div'); tmp.innerHTML = itemFeed(r).trim();
+  const tmp = document.createElement('div'); tmp.innerHTML = (ehT ? itemTreino(r) : itemFeed(r)).trim();
   el.replaceWith(tmp.firstElementChild);
 }
 
@@ -485,7 +489,7 @@ function itemTreino(t){
   const eu = t.user_id===S.user.id;
   const a = ATIVIDADES[t.atividade] || {nome:'Treino', emoji:'💪'};
   const apagavel = eu && (Date.now()-new Date(t.criado_em).getTime() < 10*60*1000);
-  return `<div class="item">
+  return `<div class="item" data-id="${t.id}">
     <div class="avatar">${esc(m.emoji)}</div>
     <div class="corpo">
       <div class="linha1"><span class="nome">${esc(eu?'Você':m.nome)}</span><span class="pts mais">+${t.pontos}</span></div>
@@ -493,6 +497,7 @@ function itemTreino(t){
       <div style="margin-top:4px"><span class="tag manga">${a.emoji} ${a.nome}</span></div>
       ${t.descricao?`<div style="margin-top:4px">${esc(t.descricao)}</div>`:''}
       ${t.foto_path && S.urls[t.foto_path]?`<img class="foto" loading="lazy" alt="Foto do treino" src="${esc(S.urls[t.foto_path])}">`:''}
+      ${interacao(t)}
       ${apagavel?`<button class="mini" data-act="apagar-treino" data-id="${t.id}">Desfazer treino</button>`:''}
     </div></div>`;
 }
@@ -516,9 +521,8 @@ function cartaoCarinho(){
   const dia = Math.floor(Date.now()/864e5);
   return `<div class="carinho"><b>🌿 Lembrete do dia</b>${esc(MENSAGENS[dia % MENSAGENS.length])}</div>`;
 }
-function folhaRegras(){
-  abrirFolha(`${cabFolha('Regras do desafio 📜')}
-  <div class="regras">
+function regrasHtml(){
+  return `<div class="regras">
     <h3>📸 Fotos</h3>
     <ul>
       <li>Só vale foto tirada na hora, pela câmera do app. Não dá para usar a galeria.</li>
@@ -548,24 +552,26 @@ function folhaRegras(){
       <li>Dá para curtir e comentar os registros dos amigos. Respeito sempre.</li>
       <li>O ranking é uma brincadeira entre amigos. <b>Saúde vem antes da competição</b>, e a vida é para ser leve.</li>
       <li>Quem tentar burlar (fotos falsas, refeições repetidas) pode ter os pontos removidos.</li>
+      <li>O seu peso é privado. Só aparece para o grupo, e apenas a variação, se você escolher compartilhar na aba Evolução.</li>
     </ul>
-  </div>`);
+  </div>`;
 }
 
 const fmtKg = n => Number(n).toFixed(1).replace('.',',');
+const fmtVar = n => (n>0.049?'+':n<-0.049?'−':'') + fmtKg(Math.abs(n));
 const fmtData = d => { const [,m,dd]=d.split('-'); return dd+'/'+m; };
 function hojeISO(){ const d=new Date(), z=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+z(d.getMonth()+1)+'-'+z(d.getDate()); }
-function graficoPeso(p){
-  const W=320,H=130,pl=34,pr=12,pt=14,pb=24;
-  const ts = p.map(x=>new Date(x.data+'T12:00:00').getTime()), vs = p.map(x=>Number(x.peso));
+function graficoLinha(p, fmt, interativo){
+  const W=320,H=130,pl=38,pr=12,pt=14,pb=24;
+  const ts = p.map(x=>new Date(x.data+'T12:00:00').getTime()), vs = p.map(x=>Number(x.v));
   const t0=Math.min(...ts), t1=Math.max(...ts);
   let lo=Math.min(...vs), hi=Math.max(...vs);
   if(hi-lo<1){ lo-=0.5; hi+=0.5; } else { const m=(hi-lo)*0.15; lo-=m; hi+=m; }
   const X = t => t1===t0 ? pl+(W-pl-pr)/2 : pl+(t-t0)/(t1-t0)*(W-pl-pr);
   const Y = v => pt+(hi-v)/(hi-lo)*(H-pt-pb);
   const pts = p.map((x,i)=>[X(ts[i]),Y(vs[i])]);
-  const grade = [hi,(hi+lo)/2,lo].map(v=>`<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" style="stroke:var(--linha)" stroke-width="1"/><text x="${pl-4}" y="${Y(v)+3.5}" text-anchor="end" font-size="10" style="fill:var(--suave)">${fmtKg(v)}</text>`).join('');
-  const marcas = pts.map((a,i)=>`<g data-act="tip-peso" data-i="${i}" style="cursor:pointer"><circle cx="${a[0]}" cy="${a[1]}" r="16" fill="transparent"/><circle cx="${a[0]}" cy="${a[1]}" r="4.5" style="fill:var(--musgo);stroke:#fff" stroke-width="2"/></g>`).join('');
+  const grade = [hi,(hi+lo)/2,lo].map(v=>`<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" style="stroke:var(--linha)" stroke-width="1"/><text x="${pl-4}" y="${Y(v)+3.5}" text-anchor="end" font-size="10" style="fill:var(--suave)">${fmt(v)}</text>`).join('');
+  const marcas = pts.map((a,i)=>`<g ${interativo?`data-act="tip-peso" data-i="${i}" style="cursor:pointer"`:''}><circle cx="${a[0]}" cy="${a[1]}" r="16" fill="transparent"/><circle cx="${a[0]}" cy="${a[1]}" r="4.5" style="fill:var(--musgo);stroke:#fff" stroke-width="2"/></g>`).join('');
   return `<svg class="grafico" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfico da evolução do peso">${grade}
     ${pts.length>1?`<polyline points="${pts.map(a=>a.join(',')).join(' ')}" fill="none" style="stroke:var(--musgo)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`:''}
     ${marcas}
@@ -584,6 +590,18 @@ function vEvolucao(){
       <div class="kpi"><div class="n" style="color:#7a5600">${c.carbo}</div><div class="l">com carboidrato 🍞</div></div></div>
       <div class="sub" style="margin-top:6px">${t ? Math.round(c.normal/t*100)+'% das suas refeições foram na dieta.' : 'Nenhuma refeição registrada ainda.'}</div></div>`;
   };
+  const compartilha = !!(S.perfil && S.perfil.mostrar_evolucao);
+  const porUser = {}; (S.evoGrupo||[]).forEach(x => (porUser[x.user_id] = porUser[x.user_id] || []).push(x));
+  const idsGrupo = Object.keys(porUser);
+  const grupoHtml = idsGrupo.length ? idsGrupo.map(id => {
+    const m = S.membros[id] || {nome:'Alguém', emoji:'🌿'}, l = porUser[id], v = Number(l[l.length-1].variacao);
+    const txt = l.length<2 ? 'Começou a registrar agora'
+      : Math.abs(v)<0.05 ? 'Sem variação desde '+fmtData(l[0].data)
+      : (v<0 ? fmtKg(Math.abs(v))+' kg a menos' : fmtKg(v)+' kg a mais')+' desde '+fmtData(l[0].data);
+    return `<div class="item"><div class="avatar">${esc(m.emoji)}</div><div class="corpo">
+      <div class="nome">${esc(m.nome)}</div><div class="sub">${txt}</div>
+      ${l.length>1 ? graficoLinha(l.map(x=>({data:x.data,v:Number(x.variacao)})), fmtVar, false) : ''}</div></div>`;
+  }).join('') : '<div class="vazio">Ninguém está compartilhando ainda. Quem quiser pode ligar acima.</div>';
   let peso = '';
   if(p.length){
     const prim=p[0], ult=p[p.length-1], d=Number(ult.peso)-Number(prim.peso);
@@ -596,13 +614,13 @@ function vEvolucao(){
       <div style="font-family:var(--display);font-weight:800;font-size:40px;line-height:1.1">${fmtKg(ult.peso)} <span style="font-size:18px">kg</span></div>
       <div class="sub" style="margin-top:2px">${txt}</div></div>
       <div class="tip" id="tipPeso">${fmtData(p[i].data)} · ${fmtKg(p[i].peso)} kg</div>
-      ${graficoPeso(p)}
+      ${graficoLinha(p.map(x=>({data:x.data,v:Number(x.peso)})), fmtKg, true)}
       <div style="margin-top:8px">${[...p].reverse().map(x=>`<div class="linhapeso"><span>${fmtData(x.data)} · <b>${fmtKg(x.peso)} kg</b></span><button class="mini" data-act="apagar-peso" data-id="${x.id}">apagar</button></div>`).join('')}</div>`;
   }
   return `
   <section class="cartao">
     <h2>Meu peso</h2>
-    <p class="sub" style="margin-top:2px">🔒 Só você vê o seu peso. Anote quando quiser, sem obrigação.</p>
+    <p class="sub" style="margin-top:2px">🔒 O seu peso é privado. Anote quando quiser, sem obrigação.</p>
     <div class="form" style="margin-top:10px">
       <div class="linhaform">
         <label class="campo">Data<input type="date" id="f_pdata" value="${hojeISO()}" max="${hojeISO()}"></label>
@@ -611,6 +629,13 @@ function vEvolucao(){
       <button class="btn verde full" data-act="salvar-peso">Salvar peso</button>
     </div>
     ${peso}
+  </section>
+  <section class="cartao">
+    <h2>Compartilhar com o grupo</h2>
+    <p class="sub" style="margin:2px 0 10px">Se quiser, o grupo pode ver a sua evolução. Aparece só <b>quanto você variou</b> (por exemplo, "1,5 kg a menos"), nunca o seu peso. Você liga e desliga quando quiser.</p>
+    <button class="btn ${compartilha?'verde':'linha'} full" data-act="alternar-evolucao">${compartilha?'✅ Compartilhando com o grupo (tocar para parar)':'👁️ Compartilhar a minha evolução'}</button>
+    <h3 style="margin:16px 0 6px">Evolução do grupo</h3>
+    ${grupoHtml}
   </section>
   <section class="cartao">
     <h2>Minhas refeições</h2>
@@ -635,8 +660,7 @@ function vRanking(){
         <div class="quando" style="margin-top:4px">${r.refeicoes} refeições · ${r.escorregadas} escorregadas · ${r.desafios} desafios · ${r.treinos} treinos</div>
       </div></div>`).join(''):'<div class="vazio">Sem pontos ainda.</div>'}
   </section>
-  <section class="aviso"><b>Como pontua:</b> refeição no horário certo, treino e desafios somam pontos. Veja todas as regras abaixo.</section>
-  <button class="btn linha full" data-act="abrir-regras">📜 Ver regras do desafio</button>`;
+  <section class="aviso"><b>Como pontua:</b> refeição no horário certo, treino e desafios somam pontos. Veja todas as regras na aba <b>Perfil</b>.</section>`;
 }
 
 function vReceitas(){
@@ -665,6 +689,7 @@ function vPerfil(){
     <div class="codigo">${esc(g?g.codigo:'')}</div>
     <button class="btn manga" style="margin-top:10px" data-act="copiar-codigo">Copiar e convidar amigos</button>
   </section>
+  <section class="cartao regras"><h2>📜 Regras do jogo</h2>${regrasHtml()}</section>
   ${S.grupos.length>1?`<section class="cartao form"><h3>Trocar de grupo</h3>${S.grupos.map(x=>`<button class="btn ${x.id===S.gid?'verde':'linha'}" data-act="grupo" data-id="${x.id}">${esc(x.nome)}</button>`).join('')}</section>`:''}
   <section class="cartao form"><h3>Mais grupos</h3>
     <input type="text" id="f_codigo" placeholder="Código de outro grupo" maxlength="10" autocapitalize="characters">
@@ -790,7 +815,6 @@ const ACOES = {
   'abrir-refeicao': () => folhaRefeicao(),
   'abrir-escorregada': () => folhaEscorregada(),
   'abrir-treino': () => folhaTreino(),
-  'abrir-regras': () => folhaRegras(),
   'tip-peso': el => { const i=Number(el.dataset.i), x=S.pesos[i]; S.tipPeso=i; const t=$('#tipPeso'); if(t&&x) t.textContent = fmtData(x.data)+' · '+fmtKg(x.peso)+' kg'; },
   'salvar-peso': el => comCarga(el,'Salvando…', async () => {
     const data = $('#f_pdata').value, v = parseFloat(String($('#f_peso').value).replace(',','.'));
@@ -800,6 +824,14 @@ const ACOES = {
     if(error) throw error;
     await carregarEvolucao(); S.tipPeso=null; render(); toast('Peso salvo ✓');
   }),
+  'alternar-evolucao': async el => {
+    const novo = !(S.perfil && S.perfil.mostrar_evolucao);
+    el.disabled = true;
+    const {error} = await sb.from('profiles').update({mostrar_evolucao:novo}).eq('id',S.user.id);
+    if(error){ el.disabled = false; toast(erroAmigavel(error)); return; }
+    S.perfil = Object.assign({}, S.perfil, {mostrar_evolucao:novo});
+    render(); toast(novo ? 'Agora o grupo vê a sua evolução' : 'Você deixou de compartilhar');
+  },
   'apagar-peso': async el => {
     if(!confirm('Apagar esse registro de peso?')) return;
     const {error} = await sb.from('pesos').delete().eq('id',el.dataset.id);
@@ -875,14 +907,15 @@ const ACOES = {
     fecharFolha(); await carregarGrupo(); render(); toast('Desafio pago! +10 pontos 💪');
   }),
   curtir: async el => {
-    const id = el.dataset.id; if(!S.feed.find(x=>x.id===id)) return;
+    const id = el.dataset.id; if(!S.feed.find(x=>x.id===id) && !ehTreino(id)) return;
+    const T = tabInter(id);
     const set = S.curtidas[id] || (S.curtidas[id] = new Set());
     const tinha = set.has(S.user.id);
     tinha ? set.delete(S.user.id) : set.add(S.user.id);
     atualizarItem(id);
     const {error} = tinha
-      ? await sb.from('curtidas').delete().eq('registro_id',id).eq('user_id',S.user.id)
-      : await sb.from('curtidas').insert({registro_id:id, user_id:S.user.id, grupo_id:S.gid});
+      ? await sb.from(T.cur).delete().eq(T.col,id).eq('user_id',S.user.id)
+      : await sb.from(T.cur).insert({[T.col]:id, user_id:S.user.id, grupo_id:S.gid});
     if(error && !/duplicate/i.test(error.message)){
       tinha ? set.add(S.user.id) : set.delete(S.user.id);
       atualizarItem(id); toast(erroAmigavel(error));
@@ -898,7 +931,8 @@ const ACOES = {
     const id = el.dataset.id, inp = campoComent(id);
     const texto = (inp ? inp.value : '').trim(); if(!texto) return;
     el.disabled = true;
-    const {data,error} = await sb.from('comentarios').insert({registro_id:id, grupo_id:S.gid, user_id:S.user.id, texto}).select().single();
+    const T = tabInter(id);
+    const {data,error} = await sb.from(T.com).insert({[T.col]:id, grupo_id:S.gid, user_id:S.user.id, texto}).select().single();
     if(error){ el.disabled = false; toast(erroAmigavel(error)); return; }
     (S.coments[id] = S.coments[id] || []).push(data);
     S.rasc[id] = '';
@@ -907,9 +941,9 @@ const ACOES = {
   },
   'apagar-coment': async el => {
     if(!confirm('Apagar seu comentário?')) return;
-    const {error} = await sb.from('comentarios').delete().eq('id',el.dataset.id);
-    if(error){ toast(erroAmigavel(error)); return; }
     const rid = el.dataset.reg;
+    const {error} = await sb.from(tabInter(rid).com).delete().eq('id',el.dataset.id);
+    if(error){ toast(erroAmigavel(error)); return; }
     S.coments[rid] = (S.coments[rid]||[]).filter(c=>c.id!==el.dataset.id);
     atualizarItem(rid);
   },
