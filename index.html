@@ -492,7 +492,7 @@ function vRanking(){
         <div class="quando" style="margin-top:4px">${r.refeicoes} refeições · ${r.escorregadas} escorregadas · ${r.desafios} desafios · ${r.treinos} treinos</div>
       </div></div>`).join(''):'<div class="vazio">Sem pontos ainda.</div>'}
   </section>
-  <section class="aviso"><b>Como pontua:</b> refeição com foto vale +10 (até 5 por dia). Se tiver cuscuz, pão, arroz ou outro carboidrato fora da dieta, vale +5. Treino com foto vale +10 de bônus (1 por dia). Escorregada vale −10. Pagando com um desafio e foto de comprovação, você ganha +10 e recupera os pontos.</section>`;
+  <section class="aviso"><b>Como pontua:</b> refeição com foto vale +10, uma de cada por dia e só no horário dela (café 4h às 11h, almoço 11h às 14h30, lanche 14h30 às 18h30, jantar a partir das 18h30). Se tiver cuscuz, pão, arroz ou outro carboidrato fora da dieta, vale +5. Treino com foto vale +10 de bônus (1 por dia). Escorregada vale −10. Pagando com um desafio e foto de comprovação, você ganha +10 e recupera os pontos.</section>`;
 }
 
 function vReceitas(){
@@ -536,11 +536,29 @@ function fecharFolha(){ const s=$('#sheet'); s.classList.remove('aberto'); s.inn
 function cabFolha(t){ return `<div class="cab"><h2>${t}</h2><button class="fechar" data-act="fechar" aria-label="Fechar">✕</button></div>`; }
 const campoFoto = `<label class="camera" id="fotoBox"><input type="file" accept="image/*" capture="environment" id="fotoIn" hidden><span>📷 Tirar foto<br><small class="sub">A data e a hora ficam marcadas na imagem</small></span></label>`;
 
+// mesmas janelas de horário do servidor (o servidor é quem manda; aqui é só para orientar)
+const JANELAS = {cafe:[240,660,'04:00 às 10:59'], almoco:[660,870,'11:00 às 14:29'], lanche:[870,1110,'14:30 às 18:29'], jantar:[1110,1440,'a partir de 18:30']};
+function refeicaoAgora(){
+  const d = new Date(), m = d.getHours()*60 + d.getMinutes();
+  return Object.keys(JANELAS).find(k => m>=JANELAS[k][0] && m<JANELAS[k][1]) || null;
+}
 function folhaRefeicao(){
-  const h = new Date().getHours();
-  const sug = h<10?'cafe':h<15?'almoco':h<18?'lanche':'jantar';
+  const sug = refeicaoAgora();
+  const horarios = `<div class="sub" style="line-height:1.6">${Object.entries(REFEICOES).map(([k,v])=>`${v.emoji} ${v.nome}: ${JANELAS[k][2]}`).join('<br>')}</div>`;
+  if(!sug){
+    abrirFolha(`${cabFolha('Registrar refeição')}
+      <div class="aviso">Agora não é horário de nenhuma refeição. Cada refeição só pode ser registrada no horário dela.</div>${horarios}`);
+    return;
+  }
+  const jaFez = S.minhas.some(r => r.tipo==='refeicao' && r.refeicao===sug && new Date(r.criado_em)>=inicioDoDia());
+  if(jaFez){
+    abrirFolha(`${cabFolha('Registrar refeição')}
+      <div class="aviso">Você já registrou ${REFEICOES[sug].nome.toLowerCase()} hoje. Cada refeição vale uma vez por dia.</div>${horarios}`);
+    return;
+  }
   abrirFolha(`${cabFolha('Registrar refeição')}
-    <div class="chips" id="chipsRef">${Object.entries(REFEICOES).map(([k,v])=>`<button type="button" data-act="ref" data-v="${k}" class="${k===sug?'on':''}">${v.emoji} ${v.nome}</button>`).join('')}</div>
+    <div class="chips" id="chipsRef"><button type="button" class="on" disabled>${REFEICOES[sug].emoji} ${REFEICOES[sug].nome}</button></div>
+    <p class="sub">Só dá para registrar a refeição do horário atual, com a foto tirada na hora.</p>
     ${campoFoto}
     <label class="campo">O que você comeu? (opcional)<textarea id="f_desc" maxlength="200" placeholder="Ex.: Frango grelhado com batata-doce"></textarea></label>
     <label class="carbo"><input type="checkbox" id="f_carbo"><span id="txtCarbo">🍞 Tem carboidrato fora da dieta (cuscuz, pão, arroz…)? Marque aqui: a refeição vale 5 pontos em vez de 10.</span></label>
